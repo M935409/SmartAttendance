@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الحضور بواسطة الوجه</title>
+    <title>نظام الحضور بواسطة الوجة</title>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         :root {
@@ -182,6 +182,24 @@ canvas.mirror {
   transform: scaleX(-1);
 }
 
+.designer-credit {
+    text-align: center;
+    margin-top: 2rem;
+    font-size: 0.9rem;
+    color: #888; /* لون رمادي هادئ */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: 0.5px;
+}
+
+.designer-credit span {
+    display: block;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--primary-color, #4a90e2); /* سيأخذ لون تطبيقك الأساسي */
+    font-size: 1.1rem;
+    margin-top: 5px;
+}
+
     </style>
 </head>
 <body>
@@ -304,20 +322,23 @@ canvas.mirror {
         </div>
 
         <!-- Section: Settings -->
-        <div id="sec-settings" class="view-section">
-            <div style="max-width: 550px; margin: 0 auto; background: var(--card-bg); padding: 2.5rem; border-radius: 25px;">
-                <div class="input-group">
-                    <label>اسم المؤسسة</label>
-                    <input type="text" id="set-inst-name">
-                </div>
-                <div class="input-group">
-                    <label>القسم / التخصص</label>
-                    <input type="text" id="set-dept-name">
-                </div>
-                <button class="btn btn-primary" style="width:100%" onclick="updateAppSettings()">حفظ الإعدادات</button>
-            </div>
+       <div id="sec-settings" class="view-section">
+    <div style="max-width: 550px; margin: 0 auto; background: var(--card-bg); padding: 2.5rem; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+        <div class="input-group">
+            <label>اسم المؤسسة</label>
+            <input type="text" id="set-inst-name">
+        </div>
+        <div class="input-group">
+            <label>القسم / التخصص</label>
+            <input type="text" id="set-dept-name">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="updateAppSettings()">حفظ الإعدادات</button>
+        
+        <div class="designer-credit">
+            Designed by <span>Muhab Tarig (MTR) </span>
         </div>
     </div>
+</div>
 
     <script>
         const DB_KEY = 'SMART_FACE_PRO_STORAGE';
@@ -386,7 +407,7 @@ canvas.mirror {
         function syncStorage() {
             studentsData = JSON.parse(localStorage.getItem(DB_KEY + '_students') || '[]');
             attendanceLogs = JSON.parse(localStorage.getItem(DB_KEY + '_logs') || '[]');
-            const config = JSON.parse(localStorage.getItem(DB_KEY + '_config') || '{"inst":"أكاديمية المستقبل","dept":"هندسة البرمجيات"}');
+            const config = JSON.parse(localStorage.getItem(DB_KEY + '_config') || '{"inst":"جامعة ود مدني الطبية","dept":"Batch 11 IT"}');
             
             document.getElementById('app-brand-title').innerText = config.inst;
             document.getElementById('app-brand-sub').innerText = config.dept;
@@ -543,17 +564,35 @@ canvas.mirror {
                     const match = faceMatcher.findBestMatch(d.descriptor);
                     const box = d.detection.box;
                     
-                    // Slim professional frame
-                    const drawBox = new faceapi.draw.DrawBox(box, { 
-                        label: match.label === 'unknown' ? 'غير معروف' : 'جارِ التحقق...',
-                        lineWidth: 2,
-                        boxColor: match.label === 'unknown' ? '#f43f5e' : '#4f46e5'
-                    });
-                    drawBox.draw(canvas);
+                   // Slim professional frame (FIX MIRROR ISSUE)
+const ctx = canvas.getContext("2d");
 
-                    if (match.label !== 'unknown') {
-                        processLiveAttendance(match.label);
-                    }
+// نعكس الرسم فقط (وليس الفيديو)
+ctx.save();
+ctx.scale(-1, 1);
+ctx.translate(-canvas.width, 0);
+
+// حساب بوكس معكوس صح
+const flippedBox = {
+    x: canvas.width - box.x - box.width,
+    y: box.y,
+    width: box.width,
+    height: box.height
+};
+
+const drawBox = new faceapi.draw.DrawBox(flippedBox, { 
+    label: match.label === 'unknown' ? 'غير معروف' : 'جارِ التحقق...',
+    lineWidth: 2,
+    boxColor: match.label === 'unknown' ? '#f43f5e' : '#4f46e5'
+});
+
+drawBox.draw(canvas);
+ctx.restore();
+
+// تسجيل الحضور لو معروف
+if (match.label !== 'unknown') {
+    processLiveAttendance(match.label);
+}
                 });
             }, 600);
         }
@@ -563,20 +602,39 @@ canvas.mirror {
             const logged = attendanceLogs.some(l => l.name === name && l.date === today);
             
             if (logged) {
-                document.getElementById('live-status-text').innerHTML = `<b style="color:var(--success)">${name}: تم رصدك كـ "حاضر" مسبقاً اليوم.</b>`;
+                document.getElementById('live-status-text').innerHTML =
+                    `<b style="color:var(--success)">${name}: تم رصدك كـ "حاضر" مسبقاً اليوم.</b>`;
                 return;
             }
 
             recognitionPaused = true;
-            showConfirm("تأكيد تسجيل الحضور", `مرحباً ${name}، هل ترغب في تسجيل حضورك لليوم؟`, () => {
-                attendanceLogs.push({ name, date: today, time: new Date().toLocaleTimeString('ar-EG') });
-                localStorage.setItem(DB_KEY + '_logs', JSON.stringify(attendanceLogs));
-                notify(`تم رصد حضور ${name} بنجاح`, "success");
-                recognitionPaused = false;
-            });
+            showConfirm(
+                "تأكيد تسجيل الحضور",
+                `مرحباً ${name}، هل ترغب في تسجيل حضورك لليوم؟`,
+                () => {
+                    attendanceLogs.push({
+                        name,
+                        date: today,
+                        time: new Date().toLocaleTimeString('ar-EG')
+                    });
+
+                    localStorage.setItem(
+                        DB_KEY + '_logs',
+                        JSON.stringify(attendanceLogs)
+                    );
+
+                    notify(`تم رصد حضور ${name} بنجاح`, "success");
+                    recognitionPaused = false;
+                }
+            );
             
             // Resume if modal canceled
-            document.getElementById('modal-cancel-btn').addEventListener('click', () => { recognitionPaused = false; }, {once: true});
+            document.getElementById('modal-cancel-btn')
+                .addEventListener(
+                    'click',
+                    () => { recognitionPaused = false; },
+                    { once: true }
+                );
         }
 
         function updateAppSettings() {
@@ -584,18 +642,27 @@ canvas.mirror {
                 inst: document.getElementById('set-inst-name').value,
                 dept: document.getElementById('set-dept-name').value
             };
-            localStorage.setItem(DB_KEY + '_config', JSON.stringify(config));
+
+            localStorage.setItem(
+                DB_KEY + '_config',
+                JSON.stringify(config)
+            );
+
             syncStorage();
             notify("تم تحديث إعدادات النظام", "success");
         }
 
         function confirmClearLogs() {
-            showConfirm("تصفير السجلات", "هل أنت متأكد؟ سيتم حذف جميع بيانات الحضور بشكل نهائي.", () => {
-                localStorage.removeItem(DB_KEY + '_logs');
-                attendanceLogs = [];
-                renderAttendanceGrid();
-                notify("تم تصفير السجل");
-            });
+            showConfirm(
+                "تصفير السجلات",
+                "هل أنت متأكد؟ سيتم حذف جميع بيانات الحضور بشكل نهائي.",
+                () => {
+                    localStorage.removeItem(DB_KEY + '_logs');
+                    attendanceLogs = [];
+                    renderAttendanceGrid();
+                    notify("تم تصفير السجل");
+                }
+            );
         }
 
         function initAppAccess() {
@@ -606,7 +673,8 @@ canvas.mirror {
 
         // Real-time Clock
         setInterval(() => {
-            document.getElementById('digital-clock').innerText = new Date().toLocaleTimeString('en-GB');
+            document.getElementById('digital-clock').innerText =
+                new Date().toLocaleTimeString('en-GB');
         }, 1000);
 
         window.onload = () => {
